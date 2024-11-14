@@ -15,7 +15,7 @@ contract slcVault3  {
     using SafeERC20 for IERC20;
 
     uint public stableCoinType = 2;
-    bool public priceAutoBalance; //是否开启自动平衡
+    bool public priceAutoBalance; //Automatic balance switch
 
     address public USD1;//USD1
     address public USD2;//USD2
@@ -27,7 +27,6 @@ contract slcVault3  {
 
     uint    public floorLimit;
     uint    public upperLimit;
-    uint    public timestampInterval;
 
     address public xInterface;
     address public oracleAddr;
@@ -66,6 +65,7 @@ contract slcVault3  {
     event ReturnSLC(address indexed msgSender, uint amount, address user);
     event SlcValueScale(uint scale);
     event TokensLimitsAmount(uint mode, uint amount);
+    event Setter(address  setter);
     //------------------------------------------------------------------
 
     constructor() {
@@ -86,6 +86,7 @@ contract slcVault3  {
             setter = newsetter;
         }
         newsetter = address(0);
+        emit Setter(setter);
     }
 
     function setupPriceAutoBalance(bool _priceAutoBalance) public onlySetter{
@@ -147,13 +148,14 @@ contract slcVault3  {
         setTokenLimits(3, 1 ether);
         setTokenLimits(4, 1 ether);
     }
+    //------------------------------------------------------------------------------
+
     function swapApprove() public {
         IERC20(USD1).approve(xInterface, type(uint).max);
         IERC20(USD2).approve(xInterface, type(uint).max);
         IERC20(superLibraCoin).approve(xInterface, type(uint).max);
         IERC20(USD1_USD2_Lp).approve(xInterface, type(uint).max);
     }
-
     //--------------------Price synchronization and value-added----------------------
 
     // Evaluate the value of superLibraCoin
@@ -207,32 +209,26 @@ contract slcVault3  {
             tokens[0] = USD1;
             tokens[1] = superLibraCoin;
             (outAmount,) = ixInterface(xInterface).xExchangeEstimateInput(tokens, tokensLimitsAmount[3]);
-            if(IERC20(USD1).balanceOf(address(this))>=tokensLimitsAmount[3]){
-                if(outAmount > tokensLimitsAmount[3] * 1001 / 1000){
+            if(outAmount > tokensLimitsAmount[3] * 1001 / 1000){
+                if(IERC20(USD1).balanceOf(address(this))>=tokensLimitsAmount[3]){
+                    ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[3],outAmount,outAmount/10, block.timestamp + 100);
+                }else {
+                    ixInterface(xInterface).xLpRedeem(USD1_USD2_Lp, tokensLimitsAmount[3]);
                     ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[3],outAmount,outAmount/10, block.timestamp + 100);
                 }
-            }else{
-                ixInterface(xInterface).xLpRedeem(USD1_USD2_Lp, tokensLimitsAmount[3]);
-                ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[3],outAmount,outAmount/10, block.timestamp + 100);
             }
             tokens[0] = USD2;
             (outAmount,) = ixInterface(xInterface).xExchangeEstimateInput(tokens, tokensLimitsAmount[4]);
-            if(IERC20(USD2).balanceOf(address(this))>=tokensLimitsAmount[4]){
-                if(outAmount > tokensLimitsAmount[4] * 1001 / 1000){
+            if(outAmount > tokensLimitsAmount[4] * 1001 / 1000){
+                if(IERC20(USD2).balanceOf(address(this))>=tokensLimitsAmount[4]){
+                    ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[4],outAmount,outAmount/10, block.timestamp + 100);
+                }else{
+                    ixInterface(xInterface).xLpRedeem(USD1_USD2_Lp, tokensLimitsAmount[4]);
                     ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[4],outAmount,outAmount/10, block.timestamp + 100);
                 }
-            }else{
-                ixInterface(xInterface).xLpRedeem(USD1_USD2_Lp, tokensLimitsAmount[4]);
-                ixInterface(xInterface).xexchange(tokens,tokensLimitsAmount[4],outAmount,outAmount/10, block.timestamp + 100);
             }
         }
         if(IERC20(USD1).balanceOf(address(this))> 0.1 ether && IERC20(USD2).balanceOf(address(this))> 0.1 ether){
-            ixInterface(xInterface).xLpSubscribe(USD1_USD2_Lp, [IERC20(USD1).balanceOf(address(this)), IERC20(USD2).balanceOf(address(this))]);
-        }
-    }
-
-    function valueRegression2() public autobalance{
-        if(IERC20(USD1).balanceOf(address(this))>0 && IERC20(USD2).balanceOf(address(this))>0){
             ixInterface(xInterface).xLpSubscribe(USD1_USD2_Lp, [IERC20(USD1).balanceOf(address(this)), IERC20(USD2).balanceOf(address(this))]);
         }
     }
@@ -284,12 +280,16 @@ contract slcVault3  {
             require(user == msg.sender,"SLC Vaults: Not registered as slcInterface or user need be msg.sender!");
             require(amount <= IERC20(superLibraCoin).balanceOf(user),"SLC Vaults: amount need <= balance Of user.");
         }
+        latestBlockNumber = block.number;
+        latestBlockUser = user;
+
         require(amount > 0,"SLC Vaults: Cant Pledge 0 amount");
         require(token == USD1 || token == USD2,"SLC Vaults: Only USDT Or USDC accepted");
         uint[2] memory _amount;
         iSlc(superLibraCoin).burnSLC(msg.sender, amount);
         userObtainedSLCAmount[user] -= amount;
         slcSum -= amount;
+        
 
         outputAmount = amount * 1 ether / (2 * slcValueScale);
         _amount = ixInterface(xInterface).xLpRedeem(USD1_USD2_Lp, outputAmount);
