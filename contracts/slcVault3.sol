@@ -176,6 +176,7 @@ contract slcVault3  {
         if(value > (1001 ether / 1000)){
             slcValueScale = lpvalue;// 
             iSlc(superLibraCoin).mintSLC(accoladesAddress,accolades);
+            slcSum += accolades;
         }
         emit SlcValueScale(slcValueScale);
     }
