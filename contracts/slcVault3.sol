@@ -176,6 +176,7 @@ contract slcVault3  {
         if(value > (1001 ether / 1000)){
             slcValueScale = lpvalue;// 
             iSlc(superLibraCoin).mintSLC(accoladesAddress,accolades);
+            userObtainedSLCAmount[accoladesAddress] += accolades;
             slcSum += accolades;
         }
         emit SlcValueScale(slcValueScale);
@@ -304,11 +305,11 @@ contract slcVault3  {
             tokens[0] = USD1;
         }
         if(token == USD1){
-            outputAmount = ixInterface(xInterface).xexchange(tokens,_amount[0],_amount[0],_amount[0], block.timestamp + 100);
-            IERC20(token).safeTransfer(msg.sender,outputAmount + _amount[1]);
-        }else{
             outputAmount = ixInterface(xInterface).xexchange(tokens,_amount[1],_amount[1],_amount[1], block.timestamp + 100);
             IERC20(token).safeTransfer(msg.sender,outputAmount + _amount[0]);
+        }else{
+            outputAmount = ixInterface(xInterface).xexchange(tokens,_amount[0],_amount[0],_amount[0], block.timestamp + 100);
+            IERC20(token).safeTransfer(msg.sender,outputAmount + _amount[1]);
         }
         
         valueRegression();
